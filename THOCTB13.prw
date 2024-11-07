@@ -31,6 +31,7 @@ User Function THOCTB13()
 	Private aTitulos            := {}
 	Private aLotes              := {}
 	Private aLotXCli            := {}
+	Private cPreNuTp			:= ""
 	
 	IF ! Perguntas()
         RETURN
@@ -325,13 +326,13 @@ Static Function ImprimiItens(nLote)
 		// Calcula Saldo em Aberto período
 		DbSelectArea("ZZN")
 		DbSetOrder(2)
-		cQuery := " SELECT * FROM " +retsqlname("SE1")   + "  " // SE1010
-		cQuery += "   WHERE E1_CLIENTE  = '" + cClienteDe  + "' "
-		cQuery += "      AND E1_LOJA     = '" + cLojaDe + "' "
-		cQuery += "      AND E1_NUM  = '" + xNum + "' "
-		cQuery += "      AND E1_PREFIXO <> 'ZZZ' "
-		cQuery += "      AND (E1_BAIXA   = '' OR E1_BAIXA > '"+cAnoBase+"1231') "
-		cQuery += "      AND D_E_L_E_T_  = '' ORDER BY E1_PARCELA "
+		cQuery := " SELECT * FROM " +retsqlname("SE1")   + " 						 " // SE1010
+		cQuery += "   WHERE E1_CLIENTE  = '" + cClienteDe  + "' 					 "
+		cQuery += "      AND E1_LOJA     = '" + cLojaDe + "' 						 "
+		cQuery += "      AND CONCAT(E1_PREFIXO,E1_NUM,E1_TIPO)  = " + cPreNuTp
+		cQuery += "      AND E1_PREFIXO <> 'ZZZ' 									 "
+		cQuery += "      AND (E1_BAIXA   = '' OR E1_BAIXA > '"+cAnoBase+"1231') 	 "
+		cQuery += "      AND D_E_L_E_T_  = '' ORDER BY E1_PARCELA 					 "
 		TCQuery cQuery NEW ALIAS "TCSLD"
 		DbSelectArea("TCSLD")
 		DbGoTop()
@@ -340,17 +341,17 @@ Static Function ImprimiItens(nLote)
 		xFil     := E1_FILIAL
 		xNum     := E1_NUM
 
-		While !EOF()
-			cQuery := " SELECT * FROM " +retsqlname("ZZN")   + "  "
-			cQuery += "   WHERE ZZN_CLIENT    = '" + cClienteDe  + "' "
-			cQuery += "      AND ZZN_LOJA     = '" + cLojaDe + "' "
-			cQuery += "      AND ZZN_NUM      = '" + TCSLD->(E1_NUM) + "' "
-			cQuery += "      AND ZZN_PARC     = '" + TCSLD->(E1_PARCELA) + "' "
-			cQuery += "      AND ZZN_PREFIX   = '" + TCSLD->(E1_PREFIXO)+"' "
-			cQuery += "      AND ZZN_FILIAL   = '" + TCSLD->(E1_FILIAL)+"' "
+		While !EOF()	
+			cQuery := " SELECT * FROM " +retsqlname("ZZN")   + "  				"
+			cQuery += "   WHERE ZZN_CLIENT    = '" + cClienteDe  + "' 			"
+			cQuery += "      AND ZZN_LOJA     = '" + cLojaDe + "' 				"
+			cQuery += "      AND ZZN_NUM      = '" + TCSLD->(E1_NUM) + "' 		"
+			cQuery += "      AND ZZN_PARC     = '" + TCSLD->(E1_PARCELA) + "' 	"
+			cQuery += "      AND ZZN_PREFIX   = '" + TCSLD->(E1_PREFIXO)+"' 	"
+			cQuery += "      AND ZZN_FILIAL   = '" + TCSLD->(E1_FILIAL)+"' 		"
 			cQuery += "      AND SUBSTRING(ZZN_MESREF,4,4)   = '" + cAnoBase+"' "
-			cQuery += "      AND D_E_L_E_T_   = '' "
-			cQuery += "      ORDER BY ZZN_MESREF DESC "
+			cQuery += "      AND D_E_L_E_T_   = '' 								"
+			cQuery += "      ORDER BY ZZN_MESREF DESC 							"
 			TCQuery cQuery NEW ALIAS "TCZZN"
 			DbSelectArea("TCZZN")
 			DbGoTop()
@@ -369,7 +370,7 @@ Static Function ImprimiItens(nLote)
 			DbSelectArea("TCSLD")
 			DbGoTop()
 			While !EOF()
-				nSldAber := nSldAber + E1_VALOR
+				nSldAber := nSldAber + TCSLD->E1_VALOR
 				DbSkip()
 			EndDo
 		EndIf
@@ -743,15 +744,17 @@ Static Function GetValorContrato(cCliente,cProduto)
 	Local nTotal:= 0
 	Local nVal  := 1
 
-	cConsul := " SELECT DISTINCT E1_NUM"
+	cConsul := " SELECT DISTINCT E1_PREFIXO, E1_NUM, E1_TIPO	"
 	cConsul += " FROM "+RetSqlTab("SE1")
-	cConsul += " WHERE 1=1"
+	cConsul += " WHERE 1=1								"
 	cConsul += " AND "+RetSqlFil("SE1")
 	cConsul += " AND "+RetSqlDel("SE1")
-	cConsul += " AND E1_CLIENTE = '"+cCliente+"' "
-	cConsul += " AND E1_PRODUTO = '"+cProduto+"' "
-	cConsul += " AND E1_BAIXA   <= '"+cAnoBase+"1231' "
-	cConsul += " AND E1_EMISSAO <= '"+cAnoBase+"1231' "
+	cConsul += " AND E1_CLIENTE = '"+cCliente+"' 		"
+	cConsul += " AND E1_PRODUTO = '"+cProduto+"' 		"
+	cConsul += " AND E1_BAIXA   <= '"+cAnoBase+"1231' 	"
+	cConsul += " AND E1_EMISSAO <= '"+cAnoBase+"1231' 	"
+	cConsul += " AND SE1.E1_TIPO <> 'RC' 				"
+	cConsul += " AND SE1.E1_PREFIXO <> 'ZZZ' 			"
 
 	TCQuery cConsul NEW ALIAS "TCONSUL"
 	DbSelectArea("TCONSUL")
@@ -765,21 +768,23 @@ Static Function GetValorContrato(cCliente,cProduto)
 				cSQL:= " SELECT SUM(E1_VALOR + E1_ACRESC) AS E1_VALOR FROM "+RetSqlTab("SE1")
 				cSQL+= " LEFT OUTER JOIN " +RetSqlTab("SE5")
 				cSQL+= " 		ON "+ RetSqlFil("SE5")
-				cSQL+= " 			AND SE5.E5_CLIFOR	= SE1.E1_CLIENTE " 	
-				cSQL+= " 			AND SE5.E5_PREFIXO	= SE1.E1_PREFIXO " 	
-				cSQL+= " 			AND SE5.E5_NUMERO	= SE1.E1_NUM "	
-				cSQL+= " 			AND SE5.E5_PARCELA	= SE1.E1_PARCELA " 	
-				cSQL+= " 			AND SE5.E5_TIPO		= SE1.E1_TIPO "
-				cSQL+= " 			AND SE5.E5_TIPODOC	NOT IN ('DB','DC','MT','JR','ES') "		        
-				cSQL+= " 			AND SE5.D_E_L_E_T_ = '' "
-				cSQL+= " WHERE 1=1 "
+				cSQL+= " 			AND SE5.E5_CLIFOR	= SE1.E1_CLIENTE 						" 	
+				cSQL+= " 			AND SE5.E5_PREFIXO	= SE1.E1_PREFIXO 						" 	
+				cSQL+= " 			AND SE5.E5_NUMERO	= SE1.E1_NUM 							"	
+				cSQL+= " 			AND SE5.E5_PARCELA	= SE1.E1_PARCELA 						" 	
+				cSQL+= " 			AND SE5.E5_TIPO		= SE1.E1_TIPO 							"
+				cSQL+= " 			AND SE5.E5_TIPODOC	NOT IN ('DB','DC','MT','JR','ES') 		"		        
+				cSQL+= " 			AND SE5.D_E_L_E_T_ = '' 									"
+				cSQL+= " WHERE 1=1 																"
 				cSQL+= " AND "+RetSqlFil("SE1")
 				cSQL+= " AND "+RetSqlDel("SE1")
-				cSQL+= " AND SE1.E1_CLIENTE = '"+cCliente+"'"
-				cSQL+= " AND SE1.E1_PRODUTO = '"+cProduto+"'"
-				cSQL+= " AND SE1.E1_NUM = '"+("TCONSUL")->E1_NUM+"'"
-				cSQL+= " AND E5_MOTBX = 'NOR' "
-				cSQL+= " AND SE1.E1_TIPO <> 'RC'"
+				cSQL+= " AND SE1.E1_CLIENTE = '"+cCliente+"'									"
+				cSQL+= " AND SE1.E1_PRODUTO = '"+cProduto+"'									"
+				cSQL+= " AND SE1.E1_NUM = '"+("TCONSUL")->E1_NUM+"'								"
+				cSQL+= " AND SE1.E1_PREFIXO = '"+("TCONSUL")->E1_PREFIXO+"'						"
+				cSQL+= " AND SE1.E1_TIPO = '"+("TCONSUL")->E1_TIPO+"'							"
+				cSQL+= " AND E5_MOTBX = 'NOR' 													"
+				cSQL+= " AND SE1.E1_TIPO <> 'RC'												"
 				
 				TCQuery cSQL NEW ALIAS "TVALOR"
 				DbSelectArea("TVALOR")
@@ -795,6 +800,7 @@ Static Function GetValorContrato(cCliente,cProduto)
 
 				nVal ++
 			Else
+				cPreNuTp+= "'"+("TCONSUL")->E1_PREFIXO+("TCONSUL")->E1_NUM+("TCONSUL")->E1_TIPO+"'"
 				cSQL:= " SELECT SUM(E1_VALOR) AS E1_VALOR FROM "+RetSqlTab("SE1")
 				cSQL+= " WHERE 1=1 "
 				cSQL+= " AND "+RetSqlFil("SE1")
@@ -802,6 +808,8 @@ Static Function GetValorContrato(cCliente,cProduto)
 				cSQL+= " AND E1_CLIENTE = '"+cCliente+"'"
 				cSQL+= " AND E1_PRODUTO = '"+cProduto+"'"
 				cSQL+= " AND E1_NUM = '"+("TCONSUL")->E1_NUM+"'"
+				cSQL+= " AND SE1.E1_PREFIXO = '"+("TCONSUL")->E1_PREFIXO+"'"
+				cSQL+= " AND SE1.E1_TIPO = '"+("TCONSUL")->E1_TIPO+"'"
 				cSQL+= " AND E1_TIPO <> 'RC'"
 				
 				TCQuery cSQL NEW ALIAS "TVALOR"
@@ -835,7 +843,7 @@ Static Function Perguntas()
 
      
     //Adiciona os parâmetros
-    aadd(aPergs, {1, "Codigo do cliente" , cCli , "", ".T.", "SA1CLI", ".T.", 30, .T.})
+    aadd(aPergs, {1, "Codigo do cliente" , cCli , "", ".T.", "SA1"   , ".T.", 30, .T.})
     aadd(aPergs, {1, "Loja"              , cLoj , "", ".T.", ""      , ".T.", 30, .T.})
     aadd(aPergs, {1, "Código do Produto" , cPro , "", ".T.", "SB1"   , ".T.", 70, .T.})
     aadd(aPergs, {1, "Ano base"       , cAno , "", ".T.", ""      , ".T.", 30, .T.})
